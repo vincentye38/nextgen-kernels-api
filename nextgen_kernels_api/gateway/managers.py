@@ -1,9 +1,14 @@
 """Gateway kernel manager that integrates with our kernel monitoring system."""
 
 import asyncio
+
+from jupyter_client import KernelConnectionInfo
+from jupyter_server.gateway.gateway_client import GatewayClient
 from jupyter_server.gateway.managers import GatewayMappingKernelManager
 from jupyter_server.gateway.managers import GatewayKernelManager as _GatewayKernelManager
 from jupyter_server.gateway.managers import GatewayKernelClient as _GatewayKernelClient
+from jupyter_server.utils import url_path_join
+from tornado.escape import url_escape
 from traitlets import default, Instance, Type
 
 from ..services.kernels.client import JupyterServerKernelClientMixin
@@ -96,6 +101,7 @@ class GatewayKernelClient(JupyterServerKernelClientMixin, _GatewayKernelClient):
                     # No message available, continue loop
                     continue
                 except Exception as e:
+                    #TODO How to signal the kernel manager to restart the kernel, or notify the user the kernel is died
                     self.log.debug(f"Error processing gateway message in {channel_name}: {e}")
                     continue
 
@@ -105,6 +111,17 @@ class GatewayKernelClient(JupyterServerKernelClientMixin, _GatewayKernelClient):
             pass
         except Exception as e:
             self.log.error(f"Gateway channel monitoring failed for {channel_name}: {e}")
+
+    def load_connection_info(self, info: KernelConnectionInfo) -> None:
+
+        if "key" in info:
+            key = info["key"]
+            if isinstance(key, str):
+                key = key.encode()
+            assert isinstance(key, bytes)
+
+            self.session.key = key
+        self.ws_url = info["ws_url"]
 
 
 class GatewayKernelManager(_GatewayKernelManager):
@@ -140,6 +157,19 @@ class GatewayKernelManager(_GatewayKernelManager):
 
         # Create a kernel client instance immediately
         self.kernel_client = self.client(session=self.session)
+
+    def get_connection_info(self, session: bool = False) -> KernelConnectionInfo:
+        info = super().get_connection_info(session)
+
+        #generate gateway websocket url with kernel_id. And set it to the client.
+        if self.kernel_id:
+            info["ws_url"] = url_path_join(
+                GatewayClient.instance().ws_url or "",
+                GatewayClient.instance().kernels_endpoint,
+                url_escape(self.kernel_id),
+                "channels",
+                )
+        return info
 
     async def post_start_kernel(self, **kwargs):
         """After kernel starts, connect the kernel client.
