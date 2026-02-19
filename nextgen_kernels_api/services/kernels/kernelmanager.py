@@ -43,9 +43,6 @@ class KernelManager(ServerKernelManager):
         """Initialize the kernel manager and create a kernel client instance."""
         super().__init__(**kwargs)
 
-        # Create a kernel client instance immediately
-        self.kernel_client = self.client(session=self.session)
-
     @observe('client_class')
     def _client_class_changed(self, change):
         """Override parent's _client_class_changed to handle Type trait instead of DottedObjectName."""
@@ -63,6 +60,9 @@ class KernelManager(ServerKernelManager):
         to ensure the kernel client connects properly.
         """
         await super()._async_post_start_kernel(**kwargs)
+
+        self.kernel_client = self.client(session=self.session)
+
         try:
             # Load latest connection info from kernel manager
             # The provisioner has now set the real ports

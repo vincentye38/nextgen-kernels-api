@@ -68,6 +68,7 @@ class GatewayKernelClient(JupyterServerKernelClientMixin, _GatewayKernelClient):
     async def _monitor_channel_messages(self, channel_name: str, channel):
         """Monitor a gateway channel for incoming messages."""
         try:
+            error_count = 0
             while channel.is_alive():
                 try:
                     # Get message from gateway channel queue
@@ -96,16 +97,19 @@ class GatewayKernelClient(JupyterServerKernelClientMixin, _GatewayKernelClient):
 
                     # Route to listeners
                     await self._route_to_listeners(channel_name, msg_list)
-
+                    error_count = 0
                 except asyncio.TimeoutError:
                     # No message available, continue loop
+                    await asyncio.sleep(0.01)
                     continue
                 except Exception as e:
                     #TODO How to signal the kernel manager to restart the kernel, or notify the user the kernel is died
-                    self.log.debug(f"Error processing gateway message in {channel_name}: {e}")
+                    if error_count < 10:
+                        self.log.debug(f"Error processing gateway message in {channel_name}: {e}")
+                        error_count=+1
+                    await asyncio.sleep(10)
                     continue
 
-                await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:
             pass
@@ -113,14 +117,13 @@ class GatewayKernelClient(JupyterServerKernelClientMixin, _GatewayKernelClient):
             self.log.error(f"Gateway channel monitoring failed for {channel_name}: {e}")
 
     def load_connection_info(self, info: KernelConnectionInfo) -> None:
-
-        if "key" in info:
-            key = info["key"]
-            if isinstance(key, str):
-                key = key.encode()
-            assert isinstance(key, bytes)
-
-            self.session.key = key
+        # if "key" in info:
+        #     key = info["key"]
+        #     if isinstance(key, str):
+        #         key = key.encode()
+        #     assert isinstance(key, bytes)
+        #
+        #     self.session.key = key
         self.ws_url = info["ws_url"]
 
 
@@ -155,9 +158,6 @@ class GatewayKernelManager(_GatewayKernelManager):
         """Initialize the kernel manager and create a kernel client instance."""
         super().__init__(**kwargs)
 
-        # Create a kernel client instance immediately
-        self.kernel_client = self.client(session=self.session)
-
     def get_connection_info(self, session: bool = False) -> KernelConnectionInfo:
         info = super().get_connection_info(session)
 
@@ -182,6 +182,8 @@ class GatewayKernelManager(_GatewayKernelManager):
         to ensure the kernel client connects properly.
         """
         await super().post_start_kernel(**kwargs)
+
+        self.kernel_client = self.client(session=self.session)
 
         try:
             # Load latest connection info from kernel manager
