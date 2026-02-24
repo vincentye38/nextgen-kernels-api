@@ -117,14 +117,31 @@ class GatewayKernelClient(JupyterServerKernelClientMixin, _GatewayKernelClient):
             self.log.error(f"Gateway channel monitoring failed for {channel_name}: {e}")
 
     def load_connection_info(self, info: KernelConnectionInfo) -> None:
-        # if "key" in info:
-        #     key = info["key"]
-        #     if isinstance(key, str):
-        #         key = key.encode()
-        #     assert isinstance(key, bytes)
-        #
-        #     self.session.key = key
+        """Load WebSocket connection info from provisioner.
+        
+        GatewayKernelClient expects connection_info to contain:
+        - ws_url: WebSocket URL to the gateway (required)
+        - key: Session key for message signing (optional)
+        
+        The ws_url is provided by SparkProvisioner in its connection_info.
+        """
+        if "ws_url" not in info:
+            raise ValueError(
+                "GatewayKernelClient requires 'ws_url' in connection_info. "
+                "This should be provided by the provisioner (e.g., SparkProvisioner)."
+            )
+        
         self.ws_url = info["ws_url"]
+        self.log.debug(f"Loaded WebSocket URL from connection_info: {self.ws_url}")
+        
+        # Load session key if provided
+        if "key" in info:
+            key = info["key"]
+            if isinstance(key, str):
+                key = key.encode()
+            if isinstance(key, bytes):
+                self.session.key = key
+                self.log.debug("Loaded session key from connection_info")
 
 
 class GatewayKernelManager(_GatewayKernelManager):
@@ -157,19 +174,6 @@ class GatewayKernelManager(_GatewayKernelManager):
     def __init__(self, **kwargs):
         """Initialize the kernel manager and create a kernel client instance."""
         super().__init__(**kwargs)
-
-    def get_connection_info(self, session: bool = False) -> KernelConnectionInfo:
-        info = super().get_connection_info(session)
-
-        #generate gateway websocket url with kernel_id. And set it to the client.
-        if self.kernel_id:
-            info["ws_url"] = url_path_join(
-                GatewayClient.instance().ws_url or "",
-                GatewayClient.instance().kernels_endpoint,
-                url_escape(self.kernel_id),
-                "channels",
-                )
-        return info
 
     async def post_start_kernel(self, **kwargs):
         """After kernel starts, connect the kernel client.
