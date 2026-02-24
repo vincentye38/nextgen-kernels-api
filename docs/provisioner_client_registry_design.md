@@ -194,10 +194,10 @@ Provide migration guide for existing hardcoded implementations like `SparkProvis
 
 ### 📚 Documentation Needs
 
-- User guide for registering custom clients
-- API documentation (completed in this document)
-- Migration guide from hardcoded approach
-- Configuration examples
+- ✅ API documentation (this document)
+- ✅ Configuration examples in jupyter_config.py
+- User guide for extension developers
+- Migration guide from hardcoded implementations
 
 ### 🧪 Testing Needs
 
@@ -210,13 +210,21 @@ Provide migration guide for existing hardcoded implementations like `SparkProvis
 ### 1. **Module Location**
 The registry is located in `nextgen-kernels-api` to make it available as a general-purpose mechanism that any package can use.
 
-### 2. **Entry Point Format**
+### 2. **Singleton Pattern**
+Uses `SingletonConfigurable` following the same pattern as `KernelProvisionerFactory`. Configuration is applied when the singleton is first created.
+
+### 3. **Entry Point Format**
 Both entry point name (provisioner) and value (kernel client) use standard Python entry point format: `module.path:ClassName`
 
-### 3. **Fallback Behavior**
-Silent fallback to `_fallback_client` when no match is found. This allows graceful degradation while logging debug information.
+### 4. **Client Selection Architecture**
+The base `KernelManager` provides a `select_client()` hook method that subclasses can override. This provides clean separation between:
+- Base behavior: connecting and managing kernel clients
+- Extensibility: customizing which client class to use
 
-### 4. **Inheritance Matching**
+### 5. **Fallback Behavior**
+Graceful fallback to configured `fallback_client_class` (default: `JupyterServerKernelClient`) when no provisioner match is found. Logs debug information for troubleshooting.
+
+### 6. **Inheritance Matching**
 The registry supports inheritance-based matching by default. If `SparkProvisioner` is registered, subclasses automatically match.
 
 **Pros:**
@@ -227,11 +235,11 @@ The registry supports inheritance-based matching by default. If `SparkProvisione
 - May match unintentionally
 - Order-dependent if multiple base classes registered
 
-### 5. **Configuration Priority**
-Last registration wins. Configuration mappings are applied after programmatic registrations and entry point discovery.
-
-### 6. **String Format Flexibility**
+### 7. **String Format Flexibility**
 `register_from_string()` supports both `module:Class` (standard entry point format) and `module.Class` (dot notation) for backward compatibility.
+
+### 8. **Connection Info Delegation**
+`ProvisionerAwareKernelManager.get_connection_info()` delegates to provisioner when available, enabling provisioner-specific connection details (ZMQ ports, WebSocket URLs, etc.).
 
 ## Future Enhancements
 
