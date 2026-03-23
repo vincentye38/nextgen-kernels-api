@@ -60,4 +60,4 @@ timeout = 30
 timeout_method = "thread"
 
 [project.entry-points."jupyter_kernel_client_registry"]
-"jupyter_server.saturn.provisioners.spark_provisioner:SparkProvisioner" = "jupyter_server_documents.kernel_client:DocumentAwareSparkProvisionerAwareKernelClient"
+"kernel_manager.provisioners.spark_provisioner:SparkProvisioner" = "jupyter_server_documents.kernel_client:DocumentAwareSparkProvisionerAwareKernelClient"

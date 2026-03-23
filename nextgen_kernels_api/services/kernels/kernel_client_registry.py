@@ -238,7 +238,7 @@ class KernelClientRegistry(SingletonConfigurable):
         ```python
         entry_points={
             'jupyter_kernel_client_registry': [
-                'jupyter_server.saturn.provisioners.spark_provisioner:SparkProvisioner = '
+                'provisioners.spark_provisioner:SparkProvisioner = '
                 'jupyter_server_documents.kernel_client:DocumentAwareSparkProvisionerAwareKernelClient',
             ]
         }
