@@ -1,5 +1,7 @@
 """Kernel manager for the Apple JupyterLab Kernel Monitor Extension."""
 
+import asyncio
+
 from jupyter_server.services.kernels.kernelmanager import ServerKernelManager
 from jupyter_server.services.kernels.kernelmanager import (
     AsyncMappingKernelManager,
@@ -125,6 +127,26 @@ class MultiKernelManager(AsyncMappingKernelManager):
     
     def stop_buffering(self, kernel_id):
         pass
+
+    def _handle_kernel_died(self, kernel_id):
+        """Handle a kernel that has died by performing full shutdown cleanup.
+
+        Unlike the default implementation which only calls remove_kernel()
+        (a bare dict pop), this performs proper cleanup:
+        - Stops the kernel restarter
+        - Disconnects the kernel client
+        - Cleans up connection files
+        - Removes from kernel map
+        """
+        self.log.warning("Kernel %s died, shutting down and removing.", kernel_id)
+        try:
+            km = self.get_kernel(kernel_id)
+            km.stop_restarter()
+        except KeyError:
+            pass
+        # shutdown_kernel handles cleanup_resources + remove_kernel
+        # Use now=True since the kernel is already dead
+        asyncio.ensure_future(self.shutdown_kernel(kernel_id, now=True))
 
 import typing as t
 
